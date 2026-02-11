@@ -3,6 +3,7 @@ numpy
 pydantic
 python-dotenv
 Requests
+httpx
 starlette
 uvicorn
 Werkzeug

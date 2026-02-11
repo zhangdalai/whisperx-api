@@ -1,3 +1,6 @@
+# Apply torch.load patch first, before any other imports
+import fix_torch_load  # noqa: F401
+
 import os
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from starlette.responses import JSONResponse

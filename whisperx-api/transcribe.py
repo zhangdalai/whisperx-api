@@ -1,20 +1,57 @@
 import os
 import io
+import tempfile
 import numpy as np
+import httpx
 from fastapi import UploadFile
 from fastapi import HTTPException
 from backends.wx import WhisperxBackend
 from faster_whisper import decode_audio
 from typing import Optional
 from werkzeug.utils import secure_filename
+from urllib.parse import urlparse
 
 MAX_FILE_SIZE = 150 * 1024 * 1024  # 150MB
+DOWNLOAD_TIMEOUT = 300  # 5 minutes timeout for downloading large files
 
 
 def convert_audio(file: io.BytesIO) -> np.ndarray:
     """Convert the uploaded audio file to the required format."""
     # Decode the audio file to the desired format and sampling rate
     return decode_audio(file, split_stereo=False, sampling_rate=16000)
+
+
+def is_url(path: str) -> bool:
+    """Check if the given path is a URL."""
+    try:
+        result = urlparse(path)
+        return result.scheme in ('http', 'https')
+    except Exception:
+        return False
+
+
+async def download_from_url(url: str) -> str:
+    """Download a file from URL and return the temporary file path."""
+    try:
+        async with httpx.AsyncClient(timeout=DOWNLOAD_TIMEOUT, follow_redirects=True) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            
+            # Get file extension from URL or content-type
+            parsed_url = urlparse(url)
+            path = parsed_url.path
+            ext = os.path.splitext(path)[1] or '.mp3'
+            
+            # Create a temporary file
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+            temp_file.write(response.content)
+            temp_file.close()
+            
+            return temp_file.name
+    except httpx.HTTPStatusError as e:
+        raise HTTPException(status_code=404, detail=f"Failed to download file from URL: {url}, status: {e.response.status_code}")
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=400, detail=f"Failed to download file from URL: {url}, error: {str(e)}")
 
 
 async def transcribe_from_filename(
@@ -26,14 +63,28 @@ async def transcribe_from_filename(
     speaker_min: Optional[int] = None,
     speaker_max: Optional[int] = None,
 ) -> dict:
-    """Transcribe audio from a file saved on the server."""
-    filepath = os.path.join(os.environ.get("UPLOAD_DIR", "/app/uploads"), secure_filename(filename))
-    # Check if the file exists
-    if not os.path.isfile(filepath):
-        raise HTTPException(status_code=404, detail=f"File not found: {filename}")
+    """Transcribe audio from a file saved on the server or from a URL."""
+    temp_file_path = None
+    
+    try:
+        # Check if filename is a URL
+        if is_url(filename):
+            # Download the file from URL
+            filepath = await download_from_url(filename)
+            temp_file_path = filepath  # Mark for cleanup
+        else:
+            # Use local file
+            filepath = os.path.join(os.environ.get("UPLOAD_DIR", "/app/uploads"), secure_filename(filename))
+            # Check if the file exists
+            if not os.path.isfile(filepath):
+                raise HTTPException(status_code=404, detail=f"File not found: {filename}")
 
-    audio = convert_audio(filepath)
-    return await transcribe_audio(audio, model_size, language, device, diarize, speaker_min, speaker_max)
+        audio = convert_audio(filepath)
+        return await transcribe_audio(audio, model_size, language, device, diarize, speaker_min, speaker_max)
+    finally:
+        # Clean up temporary file if downloaded from URL
+        if temp_file_path and os.path.exists(temp_file_path):
+            os.remove(temp_file_path)
 
 
 async def transcribe_file(
