@@ -8,12 +8,14 @@ services:
     ports:
       - "8088:8000"
     volumes:
-      - ../uploads:/app/uploads
+      - ./uploads:/app/uploads
       - ./whisper_models:/app/wx_models
+      - ./hf_cache:/app_cache
     environment:
       WHISPER_MODELS: tiny,small
       UPLOAD_DIR: /app/uploads
       WHISPER_MODELS_DIR: /app/wx_models
+      HF_HOME: /app_cache
       WHISPER_THREADS: 2
       WHISPER_DEVICE: cuda
       WHISPER_HF_TOKEN: $WHISPER_HF_TOKEN

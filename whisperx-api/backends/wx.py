@@ -128,13 +128,8 @@ class WhisperxBackend:
 
         if self.diarize:
             # New whisperX v3.x API for diarization
-            diarize_segments = whisperx.diarize(
-                audio, 
-                result["segments"], 
-                min_speakers=speaker_min, 
-                max_speakers=speaker_max,
-                hf_token=self.hf_token
-            )
+            diarize_model = whisperx.diarize.DiarizationPipeline(use_auth_token=self.hf_token, device=self.device)
+            diarize_segments = diarize_model(audio, min_speakers=speaker_min, max_speakers=speaker_max)
             result = whisperx.assign_word_speakers(diarize_segments, result)
 
         # Flatten the list of words from all segments for further processing.
@@ -154,13 +149,48 @@ class WhisperxBackend:
         # Get the duration of the audio from the last segment's end time.
         duration = result_segments[-1]["end"] if result_segments else 0
 
-        # Return the transcription as a structured dictionary.
-        return {
+        # Build the response dictionary.
+        response = {
             "text": text,
             "language": language_code,
             "duration": duration,
             "segments": result_segments,
         }
+
+        # Generate diarized_text when diarization is enabled.
+        if self.diarize:
+            response["diarized_text"] = self._build_diarized_text(result_segments)
+
+        return response
+
+    def _build_diarized_text(self, segments: List[Segment]) -> str:
+        """Build a speaker-labeled transcript by grouping consecutive segments by speaker."""
+        lines = []
+        current_speaker = None
+        current_texts = []
+
+        for segment in segments:
+            # Get speaker from segment words, fall back to "unknown"
+            speaker = None
+            if segment.get("words"):
+                speaker = segment["words"][0].get("speaker")
+            if not speaker:
+                speaker = segment.get("speaker", "unknown")
+
+            if speaker == current_speaker:
+                current_texts.append(segment["text"])
+            else:
+                if current_speaker is not None:
+                    lines.append(f"[{current_speaker}] {' '.join(current_texts)}")
+                current_speaker = speaker
+                current_texts = [segment["text"]]
+
+        # Append the last speaker's text
+        if current_speaker is not None:
+            lines.append(f"[{current_speaker}] {' '.join(current_texts)}")
+
+        return "\n".join(lines)
+
 
     def _split_transcript(
         self, words: List[WordData], max_splits: int = 12
