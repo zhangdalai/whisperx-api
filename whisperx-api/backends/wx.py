@@ -212,7 +212,9 @@ class WhisperxBackend:
 
     def _split_line(self, words: List[WordData], max_splits: int) -> List[Segment]:
         # Recursive function to split lines at commas or natural pauses.
-        if len(words) <= max_splits:
+        if not words:
+            return []
+        if len(words) <= max_splits or max_splits <= 1:
             return [{"words": words}]
         middle = len(words) // 2
         comma_indices = [i for i, word in enumerate(words[:-1]) if "," in word["word"]]
@@ -229,7 +231,11 @@ class WhisperxBackend:
                 if gap_size > max_gap_size:
                     max_gap_size = gap_size
                     closest_comma_index = i
-        closest_comma_index = closest_comma_index or middle
+        if closest_comma_index is None:
+            closest_comma_index = middle - 1
+
+        # Ensure the split point always makes progress on both sides.
+        closest_comma_index = max(0, min(closest_comma_index, len(words) - 2))
         # Split the words at the chosen comma or gap.
         left_part = words[: closest_comma_index + 1]
         right_part = words[closest_comma_index + 1 :]
