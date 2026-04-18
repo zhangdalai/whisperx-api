@@ -169,6 +169,8 @@ class WhisperxBackend:
         lines = []
         current_speaker = None
         current_texts = []
+        current_start = None
+        current_end = None
 
         for segment in segments:
             # Get speaker from segment words, fall back to "unknown"
@@ -180,17 +182,35 @@ class WhisperxBackend:
 
             if speaker == current_speaker:
                 current_texts.append(segment["text"])
+                current_end = segment["end"]
             else:
                 if current_speaker is not None:
-                    lines.append(f"[{current_speaker}] {' '.join(current_texts)}")
+                    lines.append(
+                        f"{self._format_timestamp(current_start)} --> {self._format_timestamp(current_end)}\n"
+                        f"[{current_speaker}] {' '.join(current_texts)}"
+                    )
                 current_speaker = speaker
                 current_texts = [segment["text"]]
+                current_start = segment["start"]
+                current_end = segment["end"]
 
         # Append the last speaker's text
         if current_speaker is not None:
-            lines.append(f"[{current_speaker}] {' '.join(current_texts)}")
+            lines.append(
+                f"{self._format_timestamp(current_start)} --> {self._format_timestamp(current_end)}\n"
+                f"[{current_speaker}] {' '.join(current_texts)}"
+            )
 
-        return "\n".join(lines)
+        return "\n\n".join(lines)
+
+    def _format_timestamp(self, timestamp: Optional[float]) -> str:
+        if timestamp is None:
+            return "00:00.000"
+
+        total_milliseconds = max(0, int(round(timestamp * 1000)))
+        minutes, milliseconds_remaining = divmod(total_milliseconds, 60_000)
+        seconds, milliseconds = divmod(milliseconds_remaining, 1000)
+        return f"{minutes:02d}:{seconds:02d}.{milliseconds:03d}"
 
 
     def _split_transcript(
