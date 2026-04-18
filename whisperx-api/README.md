@@ -80,6 +80,7 @@ INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
 WHISPER_MODELS=tiny # Comma separated list of models to pre-load
 WHISPER_THREADS=8   # Number of threads to run whisperX
 WHISPER_DEVICE=cpu  # Device to run (`cpu` or `cuda`). When using `cuda`, `cpu` is also available as an option.
+WHISPER_COMPUTE_TYPE=int8 # Optional override for WhisperX compute type. Useful values: `int8`, `float16`, `int8_float16`.
 ```
 
 ## To use diarization model

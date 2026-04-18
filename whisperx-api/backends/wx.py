@@ -45,7 +45,8 @@ class WhisperxBackend:
         # Initialize the backend with the model size and device type (CPU or GPU).
         self.model_size = model_size
         self.device = device
-        self.compute_type = "int8" if device == "cpu" else "float16"
+        default_compute_type = "int8" if device == "cpu" else "float16"
+        self.compute_type = os.getenv("WHISPER_COMPUTE_TYPE", default_compute_type)
         self._validate_model_size()
         self.model_path = self._get_model_path()
         self.model = None
