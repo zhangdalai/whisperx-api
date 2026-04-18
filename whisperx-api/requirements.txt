@@ -1,5 +1,6 @@
 whisperx==3.4.5
 pyannote-audio==3.3.2
+matplotlib
 numpy
 pydantic
 python-dotenv
