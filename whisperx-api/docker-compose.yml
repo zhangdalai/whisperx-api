@@ -1,17 +1,17 @@
 services:
   whisperx-api:
     container_name: whisperx-api-gpu
-    build:
-      context: .
-      dockerfile: Dockerfile
     image: cybert/whisperx-api:gpu
+    pull_policy: never
+    restart: unless-stopped
     ports:
-      - "8088:8000"
+      - "8097:8000"
     volumes:
       - ./uploads:/app/uploads
       - ./whisper_models:/app/wx_models
       - ./hf_cache:/app_cache
     environment:
+      NVIDIA_VISIBLE_DEVICES: "1"
       WHISPER_MODELS: tiny,small
       UPLOAD_DIR: /app/uploads
       WHISPER_MODELS_DIR: /app/wx_models
@@ -26,5 +26,5 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              count: all
+              device_ids: ["1"]
               capabilities: [gpu]
