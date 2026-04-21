@@ -18,6 +18,8 @@ services:
       HF_HOME: /app_cache
       HUGGINGFACE_HUB_CACHE: /app_cache/hub
       TRANSFORMERS_CACHE: /app_cache/hub
+      TORCH_HOME: /app_cache/torch
+      XDG_CACHE_HOME: /app_cache
       HF_HUB_OFFLINE: "0"
       TRANSFORMERS_OFFLINE: "0"
       WHISPER_THREADS: 2
@@ -35,5 +37,5 @@ services:
         reservations:
           devices:
             - driver: nvidia
-              device_ids: ["1"]
+              device_ids: ["0"]
               capabilities: [gpu]
