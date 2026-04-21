@@ -31,6 +31,20 @@ def load_transcribe_module():
     numpy_module = ModuleType("numpy")
     numpy_module.ndarray = object
 
+    fastapi_module = ModuleType("fastapi")
+
+    class HTTPException(Exception):
+        def __init__(self, status_code, detail):
+            super().__init__(detail)
+            self.status_code = status_code
+            self.detail = detail
+
+    class UploadFile:
+        pass
+
+    fastapi_module.HTTPException = HTTPException
+    fastapi_module.UploadFile = UploadFile
+
     werkzeug_module = ModuleType("werkzeug")
     werkzeug_utils_module = ModuleType("werkzeug.utils")
     werkzeug_utils_module.secure_filename = lambda value: value
@@ -43,6 +57,7 @@ def load_transcribe_module():
             "backends.wx": backends_wx_module,
             "faster_whisper": faster_whisper_module,
             "numpy": numpy_module,
+            "fastapi": fastapi_module,
             "werkzeug": werkzeug_module,
             "werkzeug.utils": werkzeug_utils_module,
         },
@@ -54,6 +69,18 @@ def load_transcribe_module():
 
 
 class TranscribeURLHandlingTests(unittest.TestCase):
+    def test_download_ssl_verify_defaults_to_false(self):
+        module = load_transcribe_module()
+
+        with mock.patch.dict(os.environ, {}, clear=False):
+            self.assertFalse(module._download_ssl_verify())
+
+    def test_download_ssl_verify_can_be_enabled_via_env(self):
+        module = load_transcribe_module()
+
+        with mock.patch.dict(os.environ, {"WHISPER_URL_SSL_VERIFY": "true"}, clear=False):
+            self.assertTrue(module._download_ssl_verify())
+
     def test_candidate_download_urls_strips_workflow_hint_by_default(self):
         module = load_transcribe_module()
 
@@ -89,10 +116,11 @@ class TranscribeURLHandlingTests(unittest.TestCase):
         env = {"WHISPER_PUBLIC_URLS_ANONYMOUS": "true"}
         attempted_urls = []
         response_body = b"wav-bytes"
+        client_kwargs = {}
 
         class FakeAsyncClient:
             def __init__(self, *args, **kwargs):
-                pass
+                client_kwargs.update(kwargs)
 
             async def __aenter__(self):
                 return self
@@ -147,7 +175,51 @@ class TranscribeURLHandlingTests(unittest.TestCase):
                 "https://adp.bytefinger.ai/local_storage/opencoze/foo.wav?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Signature=abc",
             ],
         )
+        self.assertFalse(client_kwargs["verify"])
         self.assertEqual(created_temp_files[0].content, response_body)
+
+    def test_download_from_url_enables_ssl_verification_when_configured(self):
+        module = load_transcribe_module()
+        env = {"WHISPER_URL_SSL_VERIFY": "true"}
+        client_kwargs = {}
+
+        class FakeAsyncClient:
+            def __init__(self, *args, **kwargs):
+                client_kwargs.update(kwargs)
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, exc_type, exc, tb):
+                return False
+
+            async def get(self, url):
+                return SimpleNamespace(
+                    content=b"mp3-bytes",
+                    raise_for_status=lambda: None,
+                )
+
+        class FakeTempFile:
+            def __init__(self, name):
+                self.name = name
+
+            def write(self, content):
+                self.content = content
+
+            def close(self):
+                return None
+
+        with mock.patch.dict(os.environ, env, clear=False):
+            with mock.patch.object(module.httpx, "AsyncClient", FakeAsyncClient):
+                with mock.patch.object(
+                    module.tempfile,
+                    "NamedTemporaryFile",
+                    return_value=FakeTempFile("/tmp/test.mp3"),
+                ):
+                    temp_path = asyncio.run(module.download_from_url("https://example.com/test.mp3"))
+
+        self.assertEqual(temp_path, "/tmp/test.mp3")
+        self.assertTrue(client_kwargs["verify"])
 
 
 class SpeakerBoundsTests(unittest.TestCase):

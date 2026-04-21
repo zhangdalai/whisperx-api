@@ -81,6 +81,7 @@ WHISPER_MODELS=tiny # Comma separated list of models to pre-load
 WHISPER_THREADS=8   # Number of threads to run whisperX
 WHISPER_DEVICE=cpu  # Device to run (`cpu` or `cuda`). When using `cuda`, `cpu` is also available as an option.
 WHISPER_COMPUTE_TYPE=int8 # Optional override for WhisperX compute type. Useful values: `int8`, `float16`, `int8_float16`.
+WHISPER_URL_SSL_VERIFY=false # Optional. Defaults to `false`. Set to `true` to enable SSL verification when downloading audio from HTTPS URLs.
 ```
 
 ## To use diarization model

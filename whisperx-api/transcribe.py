@@ -18,6 +18,10 @@ PUBLIC_URLS_ANONYMOUS_ENVS = (
     "WHISPER_PUBLIC_URLS_ANONYMOUS",
     "COZE_PUBLIC_PLUGIN_URLS_ANONYMOUS",
 )
+URL_SSL_VERIFY_ENVS = (
+    "WHISPER_URL_SSL_VERIFY",
+    "COZE_URL_SSL_VERIFY",
+)
 PYANNOTE_MAX_SPEAKERS = 255
 
 
@@ -40,6 +44,21 @@ def _bool_env(*keys: str) -> bool:
     for key in keys:
         if os.environ.get(key, "").strip().lower() in {"1", "true", "yes", "on"}:
             return True
+    return False
+
+
+def _download_ssl_verify() -> bool:
+    for key in URL_SSL_VERIFY_ENVS:
+        value = os.environ.get(key)
+        if value is None:
+            continue
+
+        normalized = value.strip().lower()
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+
     return False
 
 
@@ -115,7 +134,11 @@ async def download_from_url(url: str) -> str:
     last_http_error = None
     last_request_error = None
 
-    async with httpx.AsyncClient(timeout=DOWNLOAD_TIMEOUT, follow_redirects=True) as client:
+    async with httpx.AsyncClient(
+        timeout=DOWNLOAD_TIMEOUT,
+        follow_redirects=True,
+        verify=_download_ssl_verify(),
+    ) as client:
         for candidate_url in candidate_download_urls(url):
             try:
                 response = await client.get(candidate_url)

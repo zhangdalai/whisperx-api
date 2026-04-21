@@ -16,8 +16,11 @@ services:
       UPLOAD_DIR: /app/uploads
       WHISPER_MODELS_DIR: /app/wx_models
       HF_HOME: /app_cache
+      HF_HUB_OFFLINE: "1"
+      TRANSFORMERS_OFFLINE: "1"
       WHISPER_THREADS: 2
       WHISPER_DEVICE: cuda
+      WHISPER_URL_SSL_VERIFY: "false"
       WHISPER_HF_TOKEN: $WHISPER_HF_TOKEN
     env_file:
       - .env
