@@ -20,6 +20,10 @@ services:
       TRANSFORMERS_OFFLINE: "1"
       WHISPER_THREADS: 2
       WHISPER_DEVICE: cuda
+      WHISPER_VAD_METHOD: pyannote
+      WHISPER_VAD_DEVICE: cpu
+      WHISPER_ALIGN_DEVICE: cpu
+      WHISPER_DIARIZE_DEVICE: cpu
       WHISPER_URL_SSL_VERIFY: "false"
       WHISPER_HF_TOKEN: $WHISPER_HF_TOKEN
     env_file:

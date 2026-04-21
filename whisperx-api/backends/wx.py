@@ -3,6 +3,7 @@ import numpy as np
 from typing import List, TypedDict, Optional
 from faster_whisper import WhisperModel, download_model
 import whisperx
+from whisperx.vads import Pyannote, Silero
 
 # Constants defining the supported Whisper model sizes for easy reference.
 SUPPORTED_MODELS = [
@@ -58,6 +59,33 @@ class WhisperxBackend:
         elif (os.getenv("WHISPER_HF_TOKEN", False) == False):
             print("WHISPER_HF_TOKEN variable not set. Diarization will not work!")
 
+    def _stage_device(self, env_key: str, default: Optional[str] = None) -> str:
+        configured = os.getenv(env_key, "").strip().lower()
+        if configured:
+            return configured
+        if default is not None:
+            return default
+        return self.device
+
+    def _vad_method(self) -> str:
+        return os.getenv("WHISPER_VAD_METHOD", "pyannote").strip().lower() or "pyannote"
+
+    def _build_vad_model(self):
+        vad_method = self._vad_method()
+        vad_options = {
+            "chunk_size": int(os.getenv("WHISPER_CHUNK_SIZE", 30)),
+            "vad_onset": float(os.getenv("WHISPER_VAD_ONSET", 0.500)),
+            "vad_offset": float(os.getenv("WHISPER_VAD_OFFSET", 0.363)),
+        }
+
+        if vad_method == "silero":
+            return Silero(**vad_options)
+
+        if vad_method == "pyannote":
+            return Pyannote(self._stage_device("WHISPER_VAD_DEVICE"), token=None, **vad_options)
+
+        raise ValueError("WHISPER_VAD_METHOD must be one of ['pyannote', 'silero']")
+
     def _validate_model_size(self):
         # Check if the provided model size is within the supported models.
         if self.model_size not in SUPPORTED_MODELS:
@@ -77,6 +105,7 @@ class WhisperxBackend:
             compute_type=self.compute_type,
             asr_options={"suppress_numerals": True},
             threads=int(os.getenv("WHISPER_THREADS", 4)),
+            vad_model=self._build_vad_model(),
         )
 
     def download_model(self) -> None:
@@ -115,7 +144,8 @@ class WhisperxBackend:
 
         # Load the alignment model for the detected language.
         model_align, metadata = whisperx.load_align_model(
-            language_code=language_code, device=self.device
+            language_code=language_code,
+            device=self._stage_device("WHISPER_ALIGN_DEVICE", default=self.device),
         )
         # Align the transcription result with the audio input.
         result = whisperx.align(
@@ -123,13 +153,16 @@ class WhisperxBackend:
             model_align,
             metadata,
             audio,
-            self.device,
+            self._stage_device("WHISPER_ALIGN_DEVICE", default=self.device),
             return_char_alignments=False,
         )
 
         if self.diarize:
             # New whisperX v3.x API for diarization
-            diarize_model = whisperx.diarize.DiarizationPipeline(use_auth_token=self.hf_token, device=self.device)
+            diarize_model = whisperx.diarize.DiarizationPipeline(
+                use_auth_token=self.hf_token,
+                device=self._stage_device("WHISPER_DIARIZE_DEVICE", default=self.device),
+            )
             diarize_segments = diarize_model(audio, min_speakers=speaker_min, max_speakers=speaker_max)
             result = whisperx.assign_word_speakers(diarize_segments, result)
 
