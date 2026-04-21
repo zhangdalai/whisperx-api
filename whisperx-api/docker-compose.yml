@@ -16,8 +16,10 @@ services:
       UPLOAD_DIR: /app/uploads
       WHISPER_MODELS_DIR: /app/wx_models
       HF_HOME: /app_cache
-      HF_HUB_OFFLINE: "1"
-      TRANSFORMERS_OFFLINE: "1"
+      HUGGINGFACE_HUB_CACHE: /app_cache/hub
+      TRANSFORMERS_CACHE: /app_cache/hub
+      HF_HUB_OFFLINE: "0"
+      TRANSFORMERS_OFFLINE: "0"
       WHISPER_THREADS: 2
       WHISPER_DEVICE: cuda
       WHISPER_VAD_METHOD: pyannote
